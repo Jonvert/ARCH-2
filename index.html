@@ -118,6 +118,32 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 @media print{body>*:not(#win){display:none!important}#win{position:static;background:#fff;display:block}.wb,.cf{display:none}}
 @media (prefers-reduced-motion:reduce){.last i.on::before{animation:none!important}}
+
+.stage.warn{background:rgba(224,57,79,.45);border-color:#ff8da0;animation:warnp 1s infinite}
+@keyframes warnp{50%{box-shadow:0 0 0 6px rgba(255,141,160,.5)}}
+.orn.dim .av{opacity:.45;filter:grayscale(.6)}
+#popup{position:fixed;left:50%;top:18%;transform:translate(-50%,-20px) scale(.92);opacity:0;pointer-events:none;z-index:62;max-width:min(92vw,540px);background:#fff;color:var(--ink);border:6px solid var(--arch);border-radius:24px;padding:22px 26px;text-align:center;font-family:var(--display);font-weight:800;font-size:clamp(1.3rem,3.4vw,2rem);box-shadow:0 20px 60px rgba(0,0,0,.55);transition:opacity .25s,transform .25s}
+#popup.show{opacity:1;transform:translate(-50%,0) scale(1)}
+#popup small{display:block;font:600 .55em var(--body);margin-top:10px}
+#popup.hitme{border-color:var(--berry);background:#fff4f6}#popup.miss{border-color:var(--gold);background:#fffaf0}
+@media (min-width:900px){
+body[data-screen=table]{--o:clamp(34px,calc((100vh - 660px)/5),100px)}
+body[data-screen=table] .garland{height:54px}
+body[data-screen=table] main{max-width:none;width:100%;margin:0;min-height:calc(100vh - 54px);padding:6px 28px 84px;grid-template-columns:minmax(380px,.8fr) 1.2fr;grid-template-areas:"brand brand" "stage tree" "hint tree";grid-template-rows:auto 1fr 1fr;justify-items:stretch;align-items:stretch;column-gap:32px;row-gap:0}
+body[data-screen=table] #table{display:contents}
+body[data-screen=table] .brand{grid-area:brand;justify-self:center;margin-bottom:6px}
+body[data-screen=table] .logo-card{width:64px;height:64px;padding:6px;border-radius:16px}
+body[data-screen=table] .dept{font-size:1.1rem}
+body[data-screen=table] #stage{grid-area:stage;align-self:end;justify-self:center;width:100%;max-width:700px;margin-bottom:10px}
+body[data-screen=table] #seathint{grid-area:hint;align-self:start;justify-self:center}
+body[data-screen=table] #tree{grid-area:tree;justify-self:center;align-self:center;width:min(100%,calc(var(--o)*8.3 + 260px));padding-top:90px}
+body[data-screen=table] .tbg,body[data-screen=table] .tl{top:30px;clip-path:polygon(50.0% 0.0%,64.7% 26.2%,62.1% 26.2%,75.1% 44.8%,70.6% 44.8%,85.5% 63.4%,79.2% 63.4%,95.9% 82.0%,87.7% 82.0%,100.0% 100.0%,0.0% 100.0%,12.3% 82.0%,4.1% 82.0%,20.8% 63.4%,14.5% 63.4%,29.4% 44.8%,24.9% 44.8%,37.9% 26.2%,35.3% 26.2%)}
+body[data-screen=table] .tbg{background:linear-gradient(180deg,transparent 25.0%,rgba(0,0,0,.30) 26.2%,transparent 27.8%,transparent 43.6%,rgba(0,0,0,.30) 44.8%,transparent 46.4%,transparent 62.2%,rgba(0,0,0,.30) 63.4%,transparent 65.0%,transparent 80.8%,rgba(0,0,0,.30) 82.0%,transparent 83.6%),linear-gradient(#2fa869,#1a6b45 55%,#0d4230)}
+body[data-screen=table] .star{top:2px;font-size:56px}
+body[data-screen=table] .stage .big{font-size:clamp(1.5rem,2.5vw,2.5rem)}
+body[data-screen=table] .nm{font-size:.85rem}
+body[data-screen=table] .pips i{width:clamp(9px,calc(var(--o)*.125),12px);height:clamp(13px,calc(var(--o)*.18),17px)}
+}
 </style>
 </head>
 <body data-screen="home">
@@ -180,6 +206,7 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
   <section id="table" class="hidden">
     <div class="stage" id="stage" aria-live="polite"></div>
     <p class="hint" id="seathint"></p>
+    <div class="row hidden" id="emojis" role="group" aria-label="Reactions"></div>
     <div id="tree">
       <div class="tbg"></div><div class="tl" id="tl" aria-hidden="true"></div>
       <div class="star" aria-hidden="true">⭐</div>
@@ -193,7 +220,7 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
 
 <aside id="gmp" class="hidden" aria-label="Game master tools"></aside>
 <div id="pause" class="hidden" role="alertdialog" aria-live="assertive"></div>
-<div class="row hidden" id="emojis" role="group" aria-label="Reactions"></div>
+<div id="popup" role="status" aria-live="assertive"></div>
 <div id="flash"></div>
 <div id="win" role="dialog" aria-modal="true"></div>
 <div id="toast" class="hidden" role="status"></div>
@@ -211,7 +238,7 @@ const REACT_MS=3000,popped={};
 function reactPop(id){const x=RE[id],o=popped[id];if(!o||o.e!==x.e||Math.abs(x.t-o.t)>1500){popped[id]={e:x.e,t:x.t};return true}o.t=x.t;return false}
 const DOM='@pmo-xmas.app',RECOV='recovery'+DOM;
 const AV=['🎅','🦌','🧝','⛄','🐧','🍪','🎄','🎁','🔔','⭐','🧦','🤶'];
-const ROWS=[1,2,3,4,5,5];
+const ROWS=[1,2,3,4,5,5],ROWS_W=[1,2,4,6,7],wideMQ=matchMedia('(min-width:900px)'),rowsFor=()=>wideMQ.matches?ROWS_W:ROWS;
 const QUOTES=["Survived the Nice List audit with zero bulbs to spare. HR is impressed and slightly concerned.","Either the most honest person in Property & Marine Ops or the best poker player.","Proof that some people truly have nothing to confess.","Santa would like a word, mostly about that “broken” microphone.","Last light standing. Please stay humble, or at least pretend.","Officially too good for the naughty list and too sneaky for the nice one.","Rumor has it even the snowballs respect this person."];
 // ---------- sounds (all generated in the browser)
 let ac,muted=false,musicOn=true,musicRun=false,mTimer,mi=0,mt=0,mv=.05;
@@ -269,6 +296,7 @@ function confetti(){const c=['#ffc94d','#e0394f','#2fa86b','#1d56b8','#fff'];for
 let role=null,app,auth,db,uid=null,screen='home',offset=0,tk=0;
 let G={},P={},SE={},RE={},BAN={},HOSTON=null,myBall=false,myAns=null,aiming=false,SPL=null,gotG=false,gotP=false,offered=false,welcomed=false,bannedMsg=false,hadNode=false,lobbyKey='',regSeat=null,joining=false;
 let BANK={},DECK=[],ANS={},BALLS={},THROWS={},PRES={};
+let gotPres=false,hostSince=0,zeroed={},pauseCall=0,warnDone=false,dqMsg=false;
 let selAv=AV[0],photo=null,gmTab='Game',editId=null,busyRev=-1,doneThrow=-1,halfDone=false,lastSec=99,hb=null;
 const pr={round:-1,seq:-1,hit:null,phase:'',lives:null},seenR={},missing={};
 const now=()=>Date.now()+offset;
@@ -277,8 +305,9 @@ const seatOf=id=>{for(const [n,u] of ent(SE))if(u===id)return +n;return null};
 const plist=()=>ent(P).map(([id,p])=>({...p,id,lives:p.lives??0,seat:seatOf(id)}));
 const me=()=>uid&&P[uid]?plist().find(p=>p.id===uid):null;
 const banned=()=>!!BAN[uid]&&(G.round>0||G.phase!=='lobby');
-const isP=()=>role==='player',MAX=()=>G.max||5,DUR=()=>G.dur||12000;
-const aliveList=()=>plist().filter(p=>p.seat!==null&&p.lives>0);
+const isP=()=>role==='player',MAX=()=>G.max||5,DUR=()=>G.dur||19000;
+const aliveList=()=>plist().filter(p=>p.seat!==null&&p.lives>0&&!p.dq);
+const Q_MS=19000,HIT_MS=10000;
 const clean=s=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
 const ready=a=>new Promise(r=>{const u=onAuthStateChanged(a,x=>{u();r(x)})});
 const gerr=m=>{$('#gerr').textContent=m};
@@ -291,17 +320,17 @@ const sched=()=>{if(!tk)tk=requestAnimationFrame(()=>{tk=0;changed()})};
 function listen(path,fn){onValue(ref(db,path),s=>{fn(s.val());sched()},e=>console.warn(path,e.code))}
 function attach(){
   onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0});
-  listen('game',v=>{G=v||{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:12000};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
+  listen('game',v=>{G=v||{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:19000};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
   listen('banned',v=>{BAN=v||{}});listen('hostOnline',v=>{HOSTON=v});
   listen('reacts',v=>{RE=v||{};ent(RE).forEach(([id,r])=>{if(r.t!==seenR[id]){seenR[id]=r.t;const left=REACT_MS-(now()-r.t);if(left>0)setTimeout(sched,left+120)}})});
   if(isP())listen('balls/'+uid,v=>{myBall=!!v});
-  else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}});listen('balls',v=>{BALLS=v||{}});listen('throws',v=>{THROWS=v||{}});listen('presence',v=>{PRES=v||{}})}
+  else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}});listen('balls',v=>{BALLS=v||{}});listen('throws',v=>{THROWS=v||{}});listen('presence',v=>{PRES=v||{};gotPres=true})}
 }
 async function enterPlayer(){
   startMusic();snd.jingle();role='player';$('#enter').disabled=true;$('#enter').textContent='Connecting…';
   try{
     initPlayer();let u=await ready(auth);if(!u)u=(await signInAnonymously(auth)).user;uid=u.uid;
-    onValue(ref(db,'.info/connected'),s=>{if(s.val()){const r=ref(db,'presence/'+uid);onDisconnect(r).remove();set(r,true)}});
+    onValue(ref(db,'.info/connected'),s=>{if(s.val()){const r=ref(db,'presence/'+uid);onDisconnect(r).remove();set(r,serverTimestamp())}});
     attach();
     await new Promise(r=>{const t=setInterval(()=>{if(gotG&&gotP){clearInterval(t);r()}},50);setTimeout(()=>{clearInterval(t);r()},6000)});
     offered=gotG&&gotP;screen=(offered&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned())?'join':'table';render();
@@ -313,9 +342,9 @@ async function gmStart(){
   screen='login';render();
 }
 async function enterGM(){
-  role='gm';screen='table';attach();
+  role='gm';screen='table';hostSince=Date.now();attach();
   const g=await get(ref(db,'game'));
-  if(!g.exists())await set(ref(db,'game'),{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:12000});
+  if(!g.exists())await set(ref(db,'game'),{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:19000});
   onValue(ref(db,'.info/connected'),s=>{if(s.val()){const r=ref(db,'hostOnline');onDisconnect(r).set(false);set(r,true)}});
   render();
 }
@@ -323,21 +352,23 @@ async function enterGM(){
 // ---------- change detection, sounds, animation
 function changed(){
   if(G.round!==pr.round){if(pr.round!==-1&&G.phase==='question'){snd.ding();mv=.02;aiming=false}pr.round=G.round}
-  if(G.seq!==pr.seq){myAns=null;halfDone=false;lastSec=99;pr.seq=G.seq}
-  if(G.hit&&G.hit!==pr.hit){snd.whoosh();flyBall(G.hit)}pr.hit=G.hit||null;
+  if(G.seq!==pr.seq){myAns=null;halfDone=false;warnDone=false;lastSec=99;pr.seq=G.seq}
+  if(G.hit&&G.hit!==pr.hit){snd.whoosh();flyBall(G.hit);const to=G.hit;setTimeout(()=>hitPopup(to),1000)}pr.hit=G.hit||null;
   if(G.phase!==pr.phase){
     if(G.phase==='reveal'||G.phase==='over')mv=.05;
     if(G.phase==='over'&&pr.phase&&pr.phase!=='over')setTimeout(showWin,1400);
     if(G.phase==='lobby'&&pr.phase==='over')$('#win').classList.remove('open');
     pr.phase=G.phase}
   const L={};ent(P).forEach(([id,p])=>L[id]=p.lives);
-  if(pr.lives){let i=0;for(const id in L)if(pr.lives[id]>L[id]){const k=i++;setTimeout(()=>{snd.pop();if(L[id]<=0)setTimeout(snd.wah,250)},k*350)}}pr.lives=L;
+  if(pr.lives){let i=0;for(const id in L)if(pr.lives[id]>L[id]){const k=i++;setTimeout(()=>{snd.pop();if(L[id]<=0)setTimeout(snd.wah,250)},k*350)}}if(pr.lives&&isP()&&P[uid]&&pr.lives[uid]>L[uid]&&!myAns&&!P[uid].dq&&(G.phase==='reveal'||G.phase==='over'))setTimeout(()=>popup('⏰ You didn’t answer in time, so you lost a light.','miss',4500),500);pr.lives=L;
   if(isP()){
     if(gotG&&gotP&&screen==='table'&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned()&&!offered){offered=true;screen='join'}
     if(gotP&&!welcomed){welcomed=true;if(P[uid])toast('Welcome back, '+P[uid].name+'. Your seat and lights are saved.')}
     if(banned()&&!bannedMsg){bannedMsg=true;toast('You were removed by the game master.')}
     if(P[uid]&&!joining)hadNode=true;
     if(gotP&&hadNode&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned()){hadNode=false;screen='join';toast('Your spot was released. Please join again.')}
+    if(G.phase==='lobby')dqMsg=false;
+    if(P[uid]&&P[uid].dq&&!dqMsg){dqMsg=true;toast('You were offline too long, so you’re watching the rest of this game.')}
     syncLobby();
   }else procThrow();
   render();
@@ -362,12 +393,13 @@ function flyBall(to){
 }
 function syncHeart(){const m=isP()?me():null,on=m&&m.seat!==null&&m.lives===1&&(G.phase==='question'||G.phase==='reveal')&&!G.paused;if(on&&!hb){snd.beat();hb=setInterval(snd.beat,950)}if(!on&&hb){clearInterval(hb);hb=null}}
 setInterval(()=>{
+  const pc=$('#pcount');if(pc&&G.paused)pc.textContent=Math.max(0,Math.ceil((G.paused.until-now())/1000));
   if(G.phase!=='question')return;
   const left=G.paused?G.pausedRem:G.endsAt-now(),f=$('#barfill');if(f)f.style.width=Math.max(0,left/DUR()*100)+'%';
   if(G.paused)return;
   const sec=Math.ceil(left/1000);if(sec!==lastSec){lastSec=sec;if(sec>0&&sec<=3)snd.tick()}
   if(!halfDone&&left<DUR()/2){halfDone=true;if(!aiming)render()}
-  if(role==='gm'&&now()>=G.endsAt+700)reveal();
+  if(!warnDone&&left<5000){warnDone=true;render()}
 },100);
 
 // ---------- host game logic (runs only in the game master's browser)
@@ -379,19 +411,19 @@ async function begin(){
   if(!deck.length){const mx=Math.max(...al.map(p=>p.lives)),w=al.filter(p=>p.lives===mx);
     return update(ref(db),{'game/phase':'over','game/last':'We ran out of statements!','game/winners':Object.fromEntries(w.map(p=>[p.id,{name:p.name}]))})}
   const id=deck.pop();
-  await update(ref(db),{deck:deck.length?deck:null,'game/statement':BANK[id].t,'game/phase':'question','game/round':(G.round||0)+1,'game/seq':(G.seq||0)+1,'game/hit':null,'game/dur':12000,'game/endsAt':now()+12000,'game/last':null});
+  await update(ref(db),{deck:deck.length?deck:null,'game/statement':BANK[id].t,'game/phase':'question','game/round':(G.round||0)+1,'game/seq':(G.seq||0)+1,'game/hit':null,'game/dur':Q_MS,'game/endsAt':now()+Q_MS,'game/last':null});
 }
 function procThrow(){
   if(role!=='gm'||G.phase!=='question'||G.hit||G.paused)return;
   const t=THROWS[G.round];if(!t||doneThrow===G.round)return;doneThrow=G.round;
   const pl=plist(),f=pl.find(p=>p.id===t.from),to=pl.find(p=>p.id===t.to);
   if(!(f&&to&&BALLS[t.from]&&f.lives>0&&to.lives>0&&f.seat!==null&&to.seat!==null&&t.from!==t.to))return;
-  update(ref(db),{'game/hit':t.to,'game/seq':G.seq+1,'game/dur':7000,'game/endsAt':now()+7000,['balls/'+t.from]:false,['players/'+t.from+'/threw']:1,['players/'+t.to+'/hits']:(to.hits||0)+1});
+  update(ref(db),{'game/hit':t.to,'game/seq':G.seq+1,'game/dur':HIT_MS,'game/endsAt':now()+HIT_MS,['balls/'+t.from]:false,['players/'+t.from+'/threw']:1,['players/'+t.to+'/hits']:(to.hits||0)+1});
 }
 async function reveal(){
   if(G.phase!=='question'||busyRev===G.seq)return;busyRev=G.seq;
   const alive=aliveList(),target=G.hit?alive.find(p=>p.id===G.hit):null,part=G.hit?(target?[target]:[]):alive;
-  const lost=part.filter(p=>ANS[p.id]&&ANS[p.id].a==='have'&&ANS[p.id].r===G.seq);
+  const lost=part.filter(p=>online(p.id)&&!(ANS[p.id]&&ANS[p.id].r===G.seq&&ANS[p.id].a==='never'));
   const upd={'game/phase':'reveal','game/hit':null};
   lost.forEach(p=>{upd['players/'+p.id+'/lives']=p.lives-1;upd['players/'+p.id+'/said']=(p.said||0)+1});
   upd['game/last']=target?`${target.name} took the snowball and ${lost.length?'lost a light.':'stays lit.'}`:(lost.length?lost.map(p=>p.name).join(', ')+(lost.length>1?' each lost':' lost')+' a light.':'Nobody has! Everyone stays lit.');
@@ -401,17 +433,49 @@ async function reveal(){
 }
 async function resetAll(full){
   const upd={deck:null,throws:null,answers:null,'game/phase':'lobby','game/round':0,'game/seq':(G.seq||0)+1,'game/statement':null,'game/last':null,'game/hit':null,'game/winners':null,'game/paused':null,'game/endsAt':null};
-  for(const [id] of ent(P)){upd['players/'+id+'/lives']=MAX();upd['players/'+id+'/said']=0;upd['players/'+id+'/hits']=0;upd['players/'+id+'/threw']=0;upd['balls/'+id]=true}
+  for(const [id] of ent(P)){upd['players/'+id+'/lives']=MAX();upd['players/'+id+'/said']=0;upd['players/'+id+'/hits']=0;upd['players/'+id+'/threw']=0;upd['players/'+id+'/dq']=null;upd['balls/'+id]=true}
+  zeroed={};
   if(full){upd.seats=null;upd.banned=null;upd.reacts=null}
   await update(ref(db),upd);toast(full?'New game! Everyone sits down again.':'Game reset.');
 }
-const resume=()=>update(ref(db),{'game/paused':null,'game/endsAt':now()+(G.phase==='question'?(G.pausedRem||0):0)});
-setInterval(()=>{
-  if(role!=='gm'||!G.phase||G.phase==='lobby'||G.phase==='over')return;
-  if(G.paused){if(PRES[G.paused.uid])resume();return}
-  const t=Date.now();
-  for(const p of aliveList()){if(PRES[p.id])delete missing[p.id];else{missing[p.id]=missing[p.id]||t;if(t-missing[p.id]>5000){update(ref(db),{'game/paused':{uid:p.id,name:p.name},'game/pausedRem':Math.max(0,G.endsAt-now())});break}}}
-},1000);
+const online=id=>{const t=PRES[id];return typeof t==='number'&&now()-t<9000};
+const offlineList=()=>aliveList().filter(p=>!online(p.id));
+async function resume(){
+  if(!G.paused||Date.now()-pauseCall<1500)return;pauseCall=Date.now();
+  const u={'game/paused':null};if(G.phase==='question')u['game/endsAt']=now()+Math.max(G.pausedRem||0,10000);
+  await update(ref(db),u);
+}
+async function dqAndResume(off){
+  if(!G.paused||Date.now()-pauseCall<1500)return;pauseCall=Date.now();
+  const u={'game/paused':null};off.forEach(p=>{u['players/'+p.id+'/dq']=1});
+  const rest=aliveList().filter(p=>!off.some(o=>o.id===p.id));
+  if(rest.length<=1){u['game/phase']='over';u['game/winners']=rest.length?{[rest[0].id]:{name:rest[0].name}}:null;u['game/last']='Some players were disconnected.'}
+  else if(G.phase==='question')u['game/endsAt']=now()+Math.max(G.pausedRem||0,10000);
+  await update(ref(db),u);
+}
+const continueNow=()=>dqAndResume(offlineList());
+async function startPause(off){
+  if(Date.now()-pauseCall<1500)return;pauseCall=Date.now();
+  await update(ref(db),{'game/paused':{key:off.map(p=>p.id).sort().join(),names:off.map(p=>p.name),until:now()+15000},'game/pausedRem':G.phase==='question'?Math.max(0,G.endsAt-now()):0});
+}
+function hostTick(){
+  if(role!=='gm'||!gotG)return;
+  if(G.phase==='question'&&!G.paused&&now()>=G.endsAt+700)reveal();
+  for(const p of plist())if(p.dq&&p.lives>0&&online(p.id)&&!zeroed[p.id]){zeroed[p.id]=1;set(ref(db,`players/${p.id}/lives`),0).catch(()=>{})}
+  if(!G.phase||G.phase==='lobby'||G.phase==='over'||!gotPres||Date.now()-hostSince<6000)return;
+  const off=offlineList();
+  if(!G.paused){if(off.length)startPause(off);return}
+  if(!off.length){resume();return}
+  if(now()>=G.paused.until){dqAndResume(off);return}
+  const key=off.map(p=>p.id).sort().join();
+  if(key!==G.paused.key&&Date.now()-pauseCall>1500){pauseCall=Date.now();update(ref(db),{'game/paused/key':key,'game/paused/names':off.map(p=>p.name)})}
+}
+let beatN=0;
+const heartbeat=()=>{if(isP()&&uid&&db)set(ref(db,'presence/'+uid),serverTimestamp()).catch(()=>{})};
+const workerTick=()=>{hostTick();if(++beatN%16===0)heartbeat()};
+try{const wk=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),250)'],{type:'text/javascript'})));wk.onmessage=workerTick}catch(e){setInterval(workerTick,250)}
+let pt;function popup(h,cls,ms){const p=$('#popup');p.className=cls||'';p.innerHTML=h;void p.offsetWidth;p.classList.add('show');clearTimeout(pt);pt=setTimeout(()=>p.classList.remove('show'),ms||3500)}
+function hitPopup(to){const tp=P[to];if(to===uid&&isP())popup(`❄️ You got hit by a snowball!<small>You must answer this statement:<br>${esc(G.statement||'')}</small>`,'hitme',3600);else popup(`❄️ ${esc(tp?tp.name:'A player')} was hit by a snowball and is answering the statement.`,'',3600)}
 async function makeHost(u,p){
   if(!/^[a-z0-9]{3,20}$/.test(u)){toast('Username: 3 to 20 letters or numbers.');return false}
   if(p.length<6){toast('Password must be at least 6 characters.');return false}
@@ -428,8 +492,8 @@ async function makeHost(u,p){
 function seatHTML(i,by){
   const p=by[i],m=isP()?me():null;
   if(!p)return `<button class="orn empty" data-seat="${i}" aria-label="Empty seat" ${(!m||G.round!==0)?'disabled':''}><span class="av">+</span></button>`;
-  const mine=isP()&&p.id===uid,out=p.lives<=0,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<REACT_MS,pop=r&&reactPop(p.id);
-  return `<div class="orn ${mine?'me':''} ${out?'out':''} ${sp?'splat':''} ${aim?'aim':''}" data-id="${p.id}" ${aim?'tabindex="0" role="button" aria-label="Throw snowball at '+esc(p.name)+'"':''}><div class="av">${p.photo?`<img src="${p.photo}" alt=""><i class="hat"></i>`:esc(p.av||'🎅')}${out?'<b class="coal">🪨</b>':''}${r?`<b class="re${pop?' pop':''}">${esc(RE[p.id].e)}</b>`:''}${mine&&myBall&&G.snowOn&&!out?'<b class="sb" title="Your snowball">⛄</b>':''}</div><div class="nm">${esc(p.name)}</div><div class="pips ${p.lives===1?'last':''}" aria-label="${p.lives} lights">${Array.from({length:MAX()},(_,k)=>`<i class="${k<p.lives?'on':''}"></i>`).join('')}</div></div>`;
+  const mine=isP()&&p.id===uid,out=p.lives<=0,dim=!out&&!!p.dq,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<REACT_MS,pop=r&&reactPop(p.id);
+  return `<div class="orn ${mine?'me':''} ${out?'out':''} ${dim?'dim':''} ${sp?'splat':''} ${aim?'aim':''}" data-id="${p.id}" ${aim?'tabindex="0" role="button" aria-label="Throw snowball at '+esc(p.name)+'"':''}><div class="av">${p.photo?`<img src="${p.photo}" alt=""><i class="hat"></i>`:esc(p.av||'🎅')}${out?'<b class="coal">🪨</b>':''}${r?`<b class="re${pop?' pop':''}">${esc(RE[p.id].e)}</b>`:''}${mine&&myBall&&G.snowOn&&!out?'<b class="sb" title="Your snowball">⛄</b>':''}</div><div class="nm">${esc(p.name)}</div><div class="pips ${p.lives===1?'last':''}" aria-label="${p.lives} lights">${Array.from({length:MAX()},(_,k)=>`<i class="${k<p.lives?'on':''}"></i>`).join('')}</div></div>`;
 }
 function stageHTML(){
   const m=isP()?me():null,seated=m&&m.seat!==null,alive=seated&&m.lives>0;
@@ -437,23 +501,23 @@ function stageHTML(){
   if(G.phase==='question'){
     const tgt=G.hit&&P[G.hit]?P[G.hit]:null,canAns=alive&&(!G.hit||G.hit===uid),left=G.paused?G.pausedRem:G.endsAt-now(),early=left>DUR()/2;
     let h=`<p class="big">${esc(G.statement)}</p>`+(tgt?`<p class="hit">❄️ Someone threw a snowball at ${esc(tgt.name)}! Only ${esc(tgt.name)} answers.</p>`:'')+`<div class="bar"><i id="barfill" style="width:${Math.max(0,left/DUR()*100)}%"></i></div>`;
-    if(canAns){h+=`<div class="row"><button class="btn ans safe" data-a="never" aria-pressed="${myAns==='never'}">Never did</button><button class="btn ans" data-a="have" aria-pressed="${myAns==='have'}">I have!</button></div>`;
+    if(canAns){h+=`<div class="row"><button class="btn ans safe" data-a="never" aria-pressed="${myAns==='never'}">Never did</button><button class="btn ans" data-a="have" aria-pressed="${myAns==='have'}">I have!</button></div>`+(!myAns&&left<5000&&!G.paused?'<p class="hit warnmsg">Pick now or you’ll lose a light!</p>':'');
       if(!G.hit&&G.snowOn&&myBall&&(early||aiming))h+=aiming?`<p class="hint">Tap a player on the tree to hit them. <button class="link" id="cancelaim" type="button">Cancel</button></p>`:`<button class="btn sm alt" id="throwb" type="button">Throw my snowball ⛄</button>`;
-      else h+=`<p class="hint">No answer counts as “never did”.</p>`}
+      else h+=`<p class="hint">If you don’t pick, it counts as “I have”.</p>`}
     else if(alive)h+=`<p class="hint">You’re safe this round. Someone else is facing the snowball.</p>`;
     else if(seated)h+=`<p class="hint">You’re on the sidelines. Enjoy the show.</p>`;
     else h+=`<p class="hint">${role==='gm'?'You’re the game master. You observe and run the game.':'You’re watching this game.'}</p>`;
     return h;
   }
   if(G.phase==='reveal')return `<p class="hint">${esc(G.statement||'')}</p><p class="big">${esc(G.last||'')}</p><p class="hint">Waiting for the next statement.</p>`;
-  if(G.phase==='over'){const w=ent(G.winners).map(([,x])=>esc(x.name));return `<p class="big">${w.join(' &amp; ')} ${w.length>1?'win':'wins'}!</p><button class="btn sm" id="seewin" type="button">See the winner screen</button>`}
+  if(G.phase==='over'){const w=ent(G.winners).map(([,x])=>esc(x.name));if(!w.length)return `<p class="big">No winner this time.</p>`;return `<p class="big">${w.join(' &amp; ')} ${w.length>1?'win':'wins'}!</p><button class="btn sm" id="seewin" type="button">See the winner screen</button>`}
   return `<p class="big">Please wait for the game master to start the game</p><p class="hint">${isP()?'Pick your seat on the tree while you wait. ':''}${aliveList().length} seated so far.</p>`;
 }
 function gmHTML(){
   const n=Object.keys(BANK).length;
   let h=`<div class="tabs">${['Game','Players','Questions','Account'].map(x=>`<button class="tab" data-t="${x}" aria-pressed="${x===gmTab}">${x}</button>`).join('')}<button class="link" data-act="close">Close</button></div>`;
   if(gmTab==='Game')h+=`<p class="hint">Round ${G.round||0}. ${G.round?DECK.length:n} of ${n} statements left. ${aliveList().length} players in play.</p><div class="row"><button class="btn sm" data-act="next" ${G.phase==='question'||G.phase==='over'||G.paused?'disabled':''}>${G.round?'Next statement':'Start game'}</button><button class="btn sm alt" data-act="reset">Reset game</button><button class="btn sm alt" data-act="newgame">New game</button></div>
-    ${G.paused?'<button class="btn sm" data-act="unpause">Unpause game</button>':''}
+    ${G.paused?'<button class="btn sm" data-act="unpause">Continue without them</button>':''}
     <label for="maxl">Lights per player (applies on reset)</label><select id="maxl">${[3,4,5].map(k=>`<option ${k===MAX()?'selected':''}>${k}</option>`).join('')}</select>
     <label><input type="checkbox" id="snowtog" ${G.snowOn?'checked':''}> Snowballs enabled</label>`;
   if(gmTab==='Players')h+=plist().map(p=>`<div class="gi"><span>${esc(p.name)} · ${p.seat===null?'no seat':'seat '+(p.seat+1)} · ${p.lives}/${MAX()} lights${PRES[p.id]?' · online':' · offline'}</span><button data-act="lm" data-id="${p.id}" aria-label="Remove a light">−</button><button data-act="lp" data-id="${p.id}" aria-label="Add a light">+</button><button class="d" data-act="rm" data-id="${p.id}">Remove</button></div>`).join('')||'<p class="hint">No players yet.</p>';
@@ -468,11 +532,12 @@ function render(){
   const started=G.round>0||(G.phase&&G.phase!=='lobby'),hm=$('#homebtn');
   hm.classList.toggle('hidden',!(role&&(screen==='join'||screen==='table')));hm.disabled=!!started;hm.title=started?'Not available once the game has started':'Back to the home page';
   const hostDown=isP()&&HOSTON===false&&G.round>0&&G.phase!=='over',pz=$('#pause');pz.classList.toggle('hidden',!(G.paused||hostDown));
-  if(G.paused||hostDown)pz.innerHTML=`<div><h2>Game paused</h2><p>${G.paused?esc(G.paused.name)+' lost connection. We’re waiting for them to come back.':'The game master lost connection. We’ll continue when they’re back.'}</p>${role==='gm'&&G.paused?'<button class="btn" data-act="unpause">Unpause game</button>':''}</div>`;
+  if(G.paused||hostDown)pz.innerHTML=`<div><h2>Game paused</h2><p>${G.paused?esc((G.paused.names||[]).join(', '))+' lost connection.':'The game master lost connection. We’ll continue when they’re back.'}</p>${G.paused?'<p>Waiting <b id="pcount">'+Math.max(0,Math.ceil((G.paused.until-now())/1000))+'</b> seconds for them to come back…</p>':''}${role==='gm'&&G.paused?'<button class="btn" data-act="unpause">Continue without them</button>':''}</div>`;
   if(screen==='table'){
     const m=isP()?me():null,by={};let i=0;plist().forEach(p=>{if(p.seat!==null)by[p.seat]=p});
-    $('#rows').innerHTML=ROWS.map(k=>`<div class="trow">${Array.from({length:k},()=>seatHTML(i++,by)).join('')}</div>`).join('');
+    $('#rows').innerHTML=rowsFor().map(k=>`<div class="trow">${Array.from({length:k},()=>seatHTML(i++,by)).join('')}</div>`).join('');
     $('#stage').innerHTML=stageHTML();
+    $('#stage').classList.toggle('warn',G.phase==='question'&&!G.paused&&!!m&&m.seat!==null&&m.lives>0&&!m.dq&&(!G.hit||G.hit===uid)&&!myAns&&(G.endsAt-now())<5000);
     $('#seathint').textContent=isP()&&gotP&&!m?'You’re watching this game.':(m&&m.seat===null&&G.round===0?'Pick an empty ornament on the tree to take your seat.':'');
     const em=$('#emojis'),ok=m&&m.seat!==null;em.classList.toggle('hidden',!ok);
     if(ok&&!em.innerHTML)em.innerHTML=EMO.map(e=>`<button type="button" class="eb" data-e="${e}" aria-label="React ${e}">${e}</button>`).join('');
@@ -538,7 +603,7 @@ $('#gmbtn').onclick=()=>{const g=$('#gmp');g.classList.toggle('hidden');if(!g.cl
 $('#win').addEventListener('click',e=>{const b=e.target.closest('[data-dl]');if(!b)return;const cv=$('#cv0'),n='Certificate-'+((P[uid]&&P[uid].name)||'winner').replace(/[^\w-]+/g,'_');if(b.dataset.dl==='png')cv.toBlob(bl=>saveBlob(bl,n+'.png'));else saveBlob(makePDF(cv),n+'.pdf')});
 function showWin(){
   const w=ent(G.winners),co=w.length>1,iWon=isP()&&G.winners&&G.winners[uid];
-  let h=`<h2>${co?'We have co-winners!':'We have a winner!'}</h2><p class="big">${w.map(([,x])=>esc(x.name)).join(' &amp; ')}</p>`;
+  let h=`<h2>${!w.length?'No winner this time':co?'We have co-winners!':'We have a winner!'}</h2><p class="big">${w.map(([,x])=>esc(x.name)).join(' &amp; ')}</p>`;
   if(iWon)h+=`<div class="cw"><canvas id="cv0" role="img" aria-label="Your certificate"></canvas><div class="row"><button class="btn sm" data-dl="png" type="button">Download image</button><button class="btn sm alt" data-dl="pdf" type="button">Download PDF</button></div></div>`;
   h+=`<div class="row wb">${role==='gm'?'<button class="btn sm" data-act="newgame" type="button">Start new game</button>':''}<button class="link" id="closewin" type="button">Back to the tree</button></div>`;
   $('#win').innerHTML=h;$('#win').classList.add('open');$('#closewin').onclick=()=>$('#win').classList.remove('open');snd.fanfare();confetti();
@@ -553,7 +618,7 @@ document.addEventListener('click',async e=>{
     else if(act==='next')await begin();
     else if(act==='reset'){if(!confirm('Reset the game? Everyone gets full lights and a new snowball.'))return;await resetAll(false)}
     else if(act==='newgame'){if(!confirm('Start a new game? Everyone will need to sit down again.'))return;await resetAll(true)}
-    else if(act==='unpause')await resume();
+    else if(act==='unpause')await continueNow();
     else if(act==='lm'||act==='lp'){const p=P[id];if(p)await set(ref(db,`players/${id}/lives`),Math.max(0,Math.min(MAX(),(p.lives||0)+(act==='lp'?1:-1))))}
     else if(act==='rm'){const p=P[id];if(!p||!confirm(`Remove ${p.name} from this game?`))return;const s=seatOf(id),u={['players/'+id]:null,['balls/'+id]:null,['answers/'+id]:null,};if(G.round>0||G.phase!=='lobby')u['banned/'+id]=true;if(s!==null)u['seats/'+s]=null;await update(ref(db),u)}
     else if(act==='edit')editId=id;else if(act==='cancel')editId=null;
@@ -578,6 +643,7 @@ lightShow();setInterval(lightShow,8000);
   for(let i=0;i<(innerWidth<600?50:90);i++)f.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*2.6+.8,s:Math.random()*.9+.35,d:Math.random()*6.28});
   (function t(){x.clearRect(0,0,w,h);x.fillStyle='rgba(255,255,255,.85)';x.beginPath();f.forEach(p=>{p.y+=p.s;p.d+=.01;p.x+=Math.sin(p.d)*.4;if(p.y>h+5){p.y=-5;p.x=Math.random()*w}x.moveTo(p.x,p.y);x.arc(p.x,p.y,p.r,0,6.283)});x.fill();requestAnimationFrame(t)})()})();
 
+wideMQ.addEventListener('change',()=>render());
 render();
 </script>
 </body>
