@@ -200,7 +200,7 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
-import {getAuth,signInAnonymously,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,updatePassword,signOut} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+import {getAuth,signInAnonymously,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,updatePassword,signOut,setPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
 import {getDatabase,ref,onValue,set,update,get,push,runTransaction,onDisconnect,serverTimestamp} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
 
 const $=s=>document.querySelector(s);
@@ -265,7 +265,7 @@ function confetti(){const c=['#ffc94d','#e0394f','#2fa86b','#1d56b8','#fff'];for
 
 // ---------- state
 let role=null,app,auth,db,uid=null,screen='home',offset=0,tk=0;
-let G={},P={},SE={},RE={},BAN={},HOSTON=null,myBall=false,myAns=null,aiming=false,SPL=null,gotG=false,gotP=false,offered=false,welcomed=false,bannedMsg=false;
+let G={},P={},SE={},RE={},BAN={},HOSTON=null,myBall=false,myAns=null,aiming=false,SPL=null,gotG=false,gotP=false,offered=false,welcomed=false,bannedMsg=false,hadNode=false,lobbyKey='',regSeat=null,joining=false;
 let BANK={},DECK=[],ANS={},BALLS={},THROWS={},PRES={};
 let selAv=AV[0],photo=null,gmTab='Game',editId=null,busyRev=-1,doneThrow=-1,halfDone=false,lastSec=99,hb=null;
 const pr={round:-1,seq:-1,hit:null,phase:'',lives:null},seenR={},missing={};
@@ -274,6 +274,7 @@ const ent=o=>Object.entries(o||{}).filter(e=>e[1]!=null);
 const seatOf=id=>{for(const [n,u] of ent(SE))if(u===id)return +n;return null};
 const plist=()=>ent(P).map(([id,p])=>({...p,id,lives:p.lives??0,seat:seatOf(id)}));
 const me=()=>uid&&P[uid]?plist().find(p=>p.id===uid):null;
+const banned=()=>!!BAN[uid]&&(G.round>0||G.phase!=='lobby');
 const isP=()=>role==='player',MAX=()=>G.max||5,DUR=()=>G.dur||12000;
 const aliveList=()=>plist().filter(p=>p.seat!==null&&p.lives>0);
 const clean=s=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -301,12 +302,12 @@ async function enterPlayer(){
     onValue(ref(db,'.info/connected'),s=>{if(s.val()){const r=ref(db,'presence/'+uid);onDisconnect(r).remove();set(r,true)}});
     attach();
     await new Promise(r=>{const t=setInterval(()=>{if(gotG&&gotP){clearInterval(t);r()}},50);setTimeout(()=>{clearInterval(t);r()},6000)});
-    offered=gotG&&gotP;screen=(offered&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!BAN[uid])?'join':'table';render();
+    offered=gotG&&gotP;screen=(offered&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned())?'join':'table';render();
   }catch(e){role=null;$('#enter').disabled=false;$('#enter').textContent='Enter the party';toast('Couldn’t connect. Check your internet and try again.')}
 }
 async function gmStart(){
   startMusic();snd.click();
-  try{initHost();const u=await ready(auth);if(u&&!u.isAnonymous){try{await get(ref(db,'bank'));return enterGM()}catch(e){}}}catch(e){}
+  try{initHost();const u=await ready(auth);if(u)await signOut(auth)}catch(e){}
   screen='login';render();
 }
 async function enterGM(){
@@ -330,11 +331,25 @@ function changed(){
   const L={};ent(P).forEach(([id,p])=>L[id]=p.lives);
   if(pr.lives){let i=0;for(const id in L)if(pr.lives[id]>L[id]){const k=i++;setTimeout(()=>{snd.pop();if(L[id]<=0)setTimeout(snd.wah,250)},k*350)}}pr.lives=L;
   if(isP()){
-    if(gotG&&gotP&&screen==='table'&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!BAN[uid]&&!offered){offered=true;screen='join'}
+    if(gotG&&gotP&&screen==='table'&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned()&&!offered){offered=true;screen='join'}
     if(gotP&&!welcomed){welcomed=true;if(P[uid])toast('Welcome back, '+P[uid].name+'. Your seat and lights are saved.')}
-    if(BAN[uid]&&!bannedMsg){bannedMsg=true;toast('You were removed by the game master.')}
+    if(banned()&&!bannedMsg){bannedMsg=true;toast('You were removed by the game master.')}
+    if(P[uid]&&!joining)hadNode=true;
+    if(gotP&&hadNode&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!banned()){hadNode=false;screen='join';toast('Your spot was released. Please join again.')}
+    syncLobby();
   }else procThrow();
   render();
+}
+function syncLobby(){
+  const k=G.phase==='lobby'&&G.round===0&&P[uid]?'on':'off',s=seatOf(uid),pr_=ref(db,'players/'+uid),bl=ref(db,'balls/'+uid);
+  if(k==='on'){
+    if(lobbyKey!=='on'){onDisconnect(pr_).remove().catch(()=>{});onDisconnect(bl).remove().catch(()=>{})}
+    if(s!==regSeat){if(regSeat!==null)onDisconnect(ref(db,'seats/'+regSeat)).cancel().catch(()=>{});if(s!==null)onDisconnect(ref(db,'seats/'+s)).remove().catch(()=>{});regSeat=s}
+  }else if(lobbyKey==='on'){
+    onDisconnect(pr_).cancel().catch(()=>{});onDisconnect(bl).cancel().catch(()=>{});
+    if(regSeat!==null)onDisconnect(ref(db,'seats/'+regSeat)).cancel().catch(()=>{});regSeat=null;
+  }
+  lobbyKey=k;
 }
 function flyBall(to){
   const el=document.querySelector(`[data-id="${to}"] .av`);if(!el)return;
@@ -473,16 +488,17 @@ $('#photo').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new File
 $('#go').onclick=async()=>{
   const n=$('#name').value.trim(),er=m=>{$('#err').style.color='';$('#err').textContent=m};
   if(n.length<2)return er('Enter at least 2 characters.');
-  if(ent(P).some(([id,p])=>id!==uid&&(p.name||'').toLowerCase()===n.toLowerCase()))return er('That name is taken. Add your initial or a number.');
-  try{
+  if(ent(P).some(([id,p])=>id!==uid&&seatOf(id)!==null&&(p.name||'').toLowerCase()===n.toLowerCase()))return er('A seated player is already using that name. Please use a different name.');
+  joining=true;try{
     const b='players/'+uid+'/';if(!P[uid]||!P[uid].name)await set(ref(db,b+'name'),n);
     await set(ref(db,b+'av'),selAv);if(photo)await set(ref(db,b+'photo'),photo);
     if(P[uid]?.lives==null)await set(ref(db,b+'lives'),MAX());
     await set(ref(db,'balls/'+uid),true);screen='table';snd.jingle();render();
-  }catch(e){er('Couldn’t join. If the game already started, you can watch from the table.')}
+  }catch(e){console.warn('join failed',e);er('Couldn’t join. Refresh the page and try again. If it keeps happening, tell the game master.')}finally{joining=false}
 };
 async function sit(n){
   const old=seatOf(uid);if(old===n)return;
+  const mn=((P[uid]&&P[uid].name)||'').toLowerCase();if(ent(P).some(([id,p])=>id!==uid&&seatOf(id)!==null&&(p.name||'').toLowerCase()===mn)){toast('A seated player already uses your name. Tap Home and join again with a different name.');return}
   try{const r=await runTransaction(ref(db,'seats/'+n),cur=>cur===null?uid:undefined);
     if(!r.committed){toast('That seat was just taken.');return}
     if(old!==null)await set(ref(db,'seats/'+old),null);snd.jingle()}catch(e){toast('Couldn’t take that seat.')}
@@ -500,13 +516,13 @@ $('#stage').onclick=async e=>{
 $('#emojis').onclick=e=>{const b=e.target.closest('.eb');if(b){snd.click();set(ref(db,'reacts/'+uid),{e:b.dataset.e,t:serverTimestamp()}).catch(()=>{})}};
 $('#glogin').onclick=async()=>{
   const u=clean($('#gu').value),p=$('#gp').value;gerr('');if(!u||!p)return gerr('Enter your username and password.');
-  try{initHost();await signInWithEmailAndPassword(auth,u+DOM,p)}catch(e){return gerr('Wrong username or password.')}
+  try{initHost();await setPersistence(auth,browserSessionPersistence);await signInWithEmailAndPassword(auth,u+DOM,p)}catch(e){return gerr('Wrong username or password.')}
   try{await get(ref(db,'bank'))}catch(e){await signOut(auth);return gerr('This account isn’t a game master.')}
   $('#gp').value='';enterGM();
 };
 $('#forgot').onclick=()=>$('#forgotbox').classList.toggle('hidden');
 $('#pinbtn').onclick=async()=>{
-  gerr('');try{initHost();await signInWithEmailAndPassword(auth,RECOV,$('#pin').value);await get(ref(db,'bank'));$('#pin').value='';$('#recbox').classList.remove('hidden')}
+  gerr('');try{initHost();await setPersistence(auth,browserSessionPersistence);await signInWithEmailAndPassword(auth,RECOV,$('#pin').value);await get(ref(db,'bank'));$('#pin').value='';$('#recbox').classList.remove('hidden')}
   catch(e){gerr('Wrong PIN, or too many tries. Wait a few minutes and try again.')}
 };
 $('#recbtn').onclick=async()=>{if(await makeHost(clean($('#ru').value),$('#rp').value)){await signOut(auth);$('#recbox').classList.add('hidden');$('#forgotbox').classList.add('hidden');gerr('New login created. Log in with it above.')}};
@@ -514,6 +530,7 @@ $('#reccont').onclick=()=>enterGM();
 $('#homebtn').onclick=async()=>{
   if(G.round>0||(G.phase&&G.phase!=='lobby'))return;
   if(isP()){const s=seatOf(uid);if(s!==null)try{await set(ref(db,'seats/'+s),null)}catch(e){}}
+  if(role==='gm')try{await signOut(auth)}catch(e){}
   location.reload();
 };
 $('#gmbtn').onclick=()=>{const g=$('#gmp');g.classList.toggle('hidden');if(!g.classList.contains('hidden'))g.innerHTML=gmHTML()};
@@ -537,7 +554,7 @@ document.addEventListener('click',async e=>{
     else if(act==='newgame'){if(!confirm('Start a new game? Everyone will need to sit down again.'))return;await resetAll(true)}
     else if(act==='unpause')await resume();
     else if(act==='lm'||act==='lp'){const p=P[id];if(p)await set(ref(db,`players/${id}/lives`),Math.max(0,Math.min(MAX(),(p.lives||0)+(act==='lp'?1:-1))))}
-    else if(act==='rm'){const p=P[id];if(!p||!confirm(`Remove ${p.name} from this game?`))return;const s=seatOf(id),u={['players/'+id]:null,['balls/'+id]:null,['answers/'+id]:null,['banned/'+id]:true};if(s!==null)u['seats/'+s]=null;await update(ref(db),u)}
+    else if(act==='rm'){const p=P[id];if(!p||!confirm(`Remove ${p.name} from this game?`))return;const s=seatOf(id),u={['players/'+id]:null,['balls/'+id]:null,['answers/'+id]:null,};if(G.round>0||G.phase!=='lobby')u['banned/'+id]=true;if(s!==null)u['seats/'+s]=null;await update(ref(db),u)}
     else if(act==='edit')editId=id;else if(act==='cancel')editId=null;
     else if(act==='save'){const v=$('#edtxt').value.trim();if(!v)return;await set(ref(db,`bank/${id}/t`),v);editId=null}
     else if(act==='del'){if(!confirm('Delete this statement?'))return;await update(ref(db),{['bank/'+id]:null,deck:DECK.filter(x=>x!==id).length?DECK.filter(x=>x!==id):null})}
