@@ -110,7 +110,7 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
 .cw{display:grid;gap:10px;justify-items:center;width:100%}.cw canvas{width:min(100%,700px);height:auto;border-radius:6px;box-shadow:0 14px 40px rgba(0,0,0,.5)}
 #emojis{position:fixed;left:50%;transform:translateX(-50%);bottom:10px;z-index:35;background:rgba(14,29,68,.94);border:1px solid rgba(255,255,255,.2);padding:6px 8px;border-radius:999px;max-width:96vw;overflow-x:auto;flex-wrap:nowrap;gap:4px}
 .eb{font-size:1.4rem;width:44px;height:44px;flex:none;border-radius:50%;border:0;background:rgba(255,255,255,.12);cursor:pointer}.eb:hover{background:rgba(255,255,255,.28)}
-.re{position:absolute;top:-12px;right:-14px;font-size:calc(var(--o)*.48);z-index:4;animation:pop .35s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.re{position:absolute;top:-12px;right:-14px;font-size:calc(var(--o)*.48);z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}.re.pop{animation:pop .35s}
 @keyframes pop{0%{transform:scale(.2)}70%{transform:scale(1.4)}100%{transform:scale(1)}}
 .cert{background:#fffdf6;color:#1a2b55;border:6px double var(--arch);padding:26px 24px;max-width:560px;width:100%;text-align:center;display:grid;gap:8px;justify-items:center}
 .cert img{width:70px}.cert p{margin:0}.cert h2{font-size:1.7rem}.cn{font-family:var(--display);font-weight:800;font-size:2rem;color:var(--arch)}.cq{font-style:italic;margin-top:8px!important}
@@ -207,6 +207,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const CFG={apiKey:"AIzaSyD09fyLMskrtHOM7KZ7tU0yJX6PUXlQA5I",authDomain:"arch-never-have-i-ever.firebaseapp.com",databaseURL:"https://arch-never-have-i-ever-default-rtdb.firebaseio.com",projectId:"arch-never-have-i-ever",storageBucket:"arch-never-have-i-ever.firebasestorage.app",messagingSenderId:"825783637964",appId:"1:825783637964:web:3dd3572f4f651a0750af69"};
+const REACT_MS=3000,popped={};
+function reactPop(id){const x=RE[id],o=popped[id];if(!o||o.e!==x.e||Math.abs(x.t-o.t)>1500){popped[id]={e:x.e,t:x.t};return true}o.t=x.t;return false}
 const DOM='@pmo-xmas.app',RECOV='recovery'+DOM;
 const AV=['🎅','🦌','🧝','⛄','🐧','🍪','🎄','🎁','🔔','⭐','🧦','🤶'];
 const ROWS=[1,2,3,4,5,5];
@@ -291,7 +293,7 @@ function attach(){
   onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0});
   listen('game',v=>{G=v||{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:12000};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
   listen('banned',v=>{BAN=v||{}});listen('hostOnline',v=>{HOSTON=v});
-  listen('reacts',v=>{RE=v||{};ent(RE).forEach(([id,r])=>{if(r.t!==seenR[id]){seenR[id]=r.t;if(now()-r.t<5000)showReact(id,r.e)}})});
+  listen('reacts',v=>{RE=v||{};ent(RE).forEach(([id,r])=>{if(r.t!==seenR[id]){seenR[id]=r.t;const left=REACT_MS-(now()-r.t);if(left>0)setTimeout(sched,left+120)}})});
   if(isP())listen('balls/'+uid,v=>{myBall=!!v});
   else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}});listen('balls',v=>{BALLS=v||{}});listen('throws',v=>{THROWS=v||{}});listen('presence',v=>{PRES=v||{}})}
 }
@@ -358,7 +360,6 @@ function flyBall(to){
   const a=b.animate([{transform:`translate(${sx}px,${sy}px) scale(.5)`},{transform:`translate(${(sx+tx)/2}px,${Math.min(sy,ty)-120}px) scale(1.2) rotate(300deg)`,offset:.55},{transform:`translate(${tx}px,${ty}px) scale(1) rotate(640deg)`}],{duration:1000,easing:'ease-in'});
   a.onfinish=()=>{b.remove();snd.thud();SPL={id:to,until:Date.now()+2600};if(to===uid&&isP()){const f=$('#flash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),150)}render();setTimeout(render,2700)};
 }
-function showReact(id,e){const av=document.querySelector(`[data-id="${id}"] .av`);if(!av)return;av.querySelectorAll('.re').forEach(n=>n.remove());const b=document.createElement('b');b.className='re';b.textContent=e;av.appendChild(b);setTimeout(()=>b.remove(),5000)}
 function syncHeart(){const m=isP()?me():null,on=m&&m.seat!==null&&m.lives===1&&(G.phase==='question'||G.phase==='reveal')&&!G.paused;if(on&&!hb){snd.beat();hb=setInterval(snd.beat,950)}if(!on&&hb){clearInterval(hb);hb=null}}
 setInterval(()=>{
   if(G.phase!=='question')return;
@@ -427,8 +428,8 @@ async function makeHost(u,p){
 function seatHTML(i,by){
   const p=by[i],m=isP()?me():null;
   if(!p)return `<button class="orn empty" data-seat="${i}" aria-label="Empty seat" ${(!m||G.round!==0)?'disabled':''}><span class="av">+</span></button>`;
-  const mine=isP()&&p.id===uid,out=p.lives<=0,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<5000;
-  return `<div class="orn ${mine?'me':''} ${out?'out':''} ${sp?'splat':''} ${aim?'aim':''}" data-id="${p.id}" ${aim?'tabindex="0" role="button" aria-label="Throw snowball at '+esc(p.name)+'"':''}><div class="av">${p.photo?`<img src="${p.photo}" alt=""><i class="hat"></i>`:esc(p.av||'🎅')}${out?'<b class="coal">🪨</b>':''}${r?`<b class="re">${esc(RE[p.id].e)}</b>`:''}${mine&&myBall&&G.snowOn&&!out?'<b class="sb" title="Your snowball">⛄</b>':''}</div><div class="nm">${esc(p.name)}</div><div class="pips ${p.lives===1?'last':''}" aria-label="${p.lives} lights">${Array.from({length:MAX()},(_,k)=>`<i class="${k<p.lives?'on':''}"></i>`).join('')}</div></div>`;
+  const mine=isP()&&p.id===uid,out=p.lives<=0,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<REACT_MS,pop=r&&reactPop(p.id);
+  return `<div class="orn ${mine?'me':''} ${out?'out':''} ${sp?'splat':''} ${aim?'aim':''}" data-id="${p.id}" ${aim?'tabindex="0" role="button" aria-label="Throw snowball at '+esc(p.name)+'"':''}><div class="av">${p.photo?`<img src="${p.photo}" alt=""><i class="hat"></i>`:esc(p.av||'🎅')}${out?'<b class="coal">🪨</b>':''}${r?`<b class="re${pop?' pop':''}">${esc(RE[p.id].e)}</b>`:''}${mine&&myBall&&G.snowOn&&!out?'<b class="sb" title="Your snowball">⛄</b>':''}</div><div class="nm">${esc(p.name)}</div><div class="pips ${p.lives===1?'last':''}" aria-label="${p.lives} lights">${Array.from({length:MAX()},(_,k)=>`<i class="${k<p.lives?'on':''}"></i>`).join('')}</div></div>`;
 }
 function stageHTML(){
   const m=isP()?me():null,seated=m&&m.seat!==null,alive=seated&&m.lives>0;
