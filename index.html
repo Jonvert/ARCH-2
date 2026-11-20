@@ -24,7 +24,7 @@ body::before{content:"";position:fixed;inset:0;z-index:0;background:radial-gradi
 @keyframes flick{0%,100%{opacity:1}20%{opacity:.2}45%{opacity:.95}70%{opacity:.3}}
 #topbar{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:10px;z-index:30;display:flex;gap:8px}
 #topbar button{font-size:1.2rem;background:rgba(255,255,255,.16);border:0;border-radius:999px;min-width:44px;height:44px;cursor:pointer;color:#fff;font-family:var(--body);font-weight:700;padding:0 12px}
-#topbar button[aria-pressed=false]{opacity:.5}
+#topbar button[aria-pressed=false]{opacity:.5}#topbar button:disabled{opacity:.35;cursor:not-allowed}
 main{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:10px 14px 70px;display:grid;gap:18px;justify-items:center;text-align:center}
 .brand{display:grid;justify-items:center;gap:8px}
 .logo-card{background:#fff;border-radius:26px;padding:12px;width:156px;height:156px;display:grid;place-items:center;box-shadow:0 18px 50px rgba(0,0,0,.45),0 0 0 6px rgba(255,255,255,.08);transition:.3s}
@@ -80,10 +80,10 @@ input[type=text],input[type=password],input[type=number],textarea,select{font:60
 .orn.empty .av{background:rgba(255,255,255,.12);box-shadow:none;border:2px dashed rgba(255,255,255,.6);color:#fff;font-weight:700}
 button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity:.5}
 .nm{font-size:.7rem;font-weight:700;background:rgba(7,15,38,.7);border-radius:8px;padding:1px 6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pips{display:flex;gap:3px}.pips i{width:8px;height:11px;border-radius:50% 50% 55% 55%;background:#1b2b50}
-.pips i.on{background:var(--c);box-shadow:0 0 7px 1px var(--c);animation:tw 1.6s ease-in-out infinite}
+.pips{display:flex;gap:2px}.pips i{position:relative;width:9px;height:13px;border-radius:50% 50% 55% 55%;background:#1b2b50;border:2px solid #000}
+.pips i.on::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--c);box-shadow:0 0 7px 1px var(--c);animation:tw 1.6s ease-in-out infinite;animation-delay:inherit}
 .pips i:nth-child(1){--c:#ff3b55}.pips i:nth-child(2){--c:#ffc94d;animation-delay:-.5s}.pips i:nth-child(3){--c:#3d8bff;animation-delay:-1s}.pips i:nth-child(4){--c:#35d08a;animation-delay:-.3s}.pips i:nth-child(5){--c:#ff7ad1;animation-delay:-.8s}
-.last i.on{animation:flick .5s infinite}
+.last i.on::before{animation:flick .5s infinite}
 .orn.me .av{box-shadow:0 4px 10px rgba(0,0,0,.4),0 0 0 4px #fff}
 .orn.out .av{filter:grayscale(1);opacity:.5;transform:translateY(8px) rotate(8deg)}.orn.out .nm{opacity:.6}
 .coal{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--o)*.5)}
@@ -117,13 +117,14 @@ button.orn.empty:not(:disabled){cursor:pointer}button.orn.empty:disabled{opacity
 .cf{position:fixed;top:-20px;width:10px;height:14px;z-index:90;animation:fall linear forwards;pointer-events:none}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 @media print{body>*:not(#win){display:none!important}#win{position:static;background:#fff;display:block}.wb,.cf{display:none}}
-@media (prefers-reduced-motion:reduce){.bulb,.tl i,.pips i,.star,.aurora{animation:none!important}#snow,.cf{display:none}}
+@media (prefers-reduced-motion:reduce){.last i.on::before{animation:none!important}}
 </style>
 </head>
 <body data-screen="home">
 <i class="aurora" aria-hidden="true"></i>
 <canvas id="snow" aria-hidden="true"></canvas>
 <div id="topbar">
+  <button id="homebtn" class="hidden" type="button">🏠 Home</button>
   <button id="gmbtn" class="hidden" type="button">Game master tools</button>
   <button id="music" type="button" aria-pressed="true" aria-label="Toggle music">🎵</button>
   <button id="mute" type="button" aria-label="Mute all sounds">🔊</button>
@@ -287,19 +288,21 @@ const sched=()=>{if(!tk)tk=requestAnimationFrame(()=>{tk=0;changed()})};
 function listen(path,fn){onValue(ref(db,path),s=>{fn(s.val());sched()},e=>console.warn(path,e.code))}
 function attach(){
   onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0});
-  listen('game',v=>{G=v||{};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
+  listen('game',v=>{G=v||{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:12000};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
   listen('banned',v=>{BAN=v||{}});listen('hostOnline',v=>{HOSTON=v});
   listen('reacts',v=>{RE=v||{};ent(RE).forEach(([id,r])=>{if(r.t!==seenR[id]){seenR[id]=r.t;if(now()-r.t<5000)showReact(id,r.e)}})});
   if(isP())listen('balls/'+uid,v=>{myBall=!!v});
   else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}});listen('balls',v=>{BALLS=v||{}});listen('throws',v=>{THROWS=v||{}});listen('presence',v=>{PRES=v||{}})}
 }
 async function enterPlayer(){
-  startMusic();snd.jingle();role='player';
+  startMusic();snd.jingle();role='player';$('#enter').disabled=true;$('#enter').textContent='Connecting…';
   try{
     initPlayer();let u=await ready(auth);if(!u)u=(await signInAnonymously(auth)).user;uid=u.uid;
     onValue(ref(db,'.info/connected'),s=>{if(s.val()){const r=ref(db,'presence/'+uid);onDisconnect(r).remove();set(r,true)}});
-    attach();screen='table';render();
-  }catch(e){role=null;toast('Couldn’t connect. Check your internet and try again.')}
+    attach();
+    await new Promise(r=>{const t=setInterval(()=>{if(gotG&&gotP){clearInterval(t);r()}},50);setTimeout(()=>{clearInterval(t);r()},6000)});
+    offered=gotG&&gotP;screen=(offered&&!P[uid]&&G.phase==='lobby'&&G.round===0&&!BAN[uid])?'join':'table';render();
+  }catch(e){role=null;$('#enter').disabled=false;$('#enter').textContent='Enter the party';toast('Couldn’t connect. Check your internet and try again.')}
 }
 async function gmStart(){
   startMusic();snd.click();
@@ -428,7 +431,7 @@ function stageHTML(){
   }
   if(G.phase==='reveal')return `<p class="hint">${esc(G.statement||'')}</p><p class="big">${esc(G.last||'')}</p><p class="hint">Waiting for the next statement.</p>`;
   if(G.phase==='over'){const w=ent(G.winners).map(([,x])=>esc(x.name));return `<p class="big">${w.join(' &amp; ')} ${w.length>1?'win':'wins'}!</p><button class="btn sm" id="seewin" type="button">See the winner screen</button>`}
-  return `<p class="big">Waiting for the game master to start</p><p class="hint">${aliveList().length} seated so far.</p>`;
+  return `<p class="big">Please wait for the game master to start the game</p><p class="hint">${isP()?'Pick your seat on the tree while you wait. ':''}${aliveList().length} seated so far.</p>`;
 }
 function gmHTML(){
   const n=Object.keys(BANK).length;
@@ -446,6 +449,8 @@ function render(){
   document.body.dataset.screen=screen;
   ['home','join','login','table'].forEach(id=>$('#'+id).classList.toggle('hidden',screen!==id));
   const gm=role==='gm'&&screen==='table';$('#gmbtn').classList.toggle('hidden',!gm);if(!gm)$('#gmp').classList.add('hidden');
+  const started=G.round>0||(G.phase&&G.phase!=='lobby'),hm=$('#homebtn');
+  hm.classList.toggle('hidden',!(role&&(screen==='join'||screen==='table')));hm.disabled=!!started;hm.title=started?'Not available once the game has started':'Back to the home page';
   const hostDown=isP()&&HOSTON===false&&G.round>0&&G.phase!=='over',pz=$('#pause');pz.classList.toggle('hidden',!(G.paused||hostDown));
   if(G.paused||hostDown)pz.innerHTML=`<div><h2>Game paused</h2><p>${G.paused?esc(G.paused.name)+' lost connection. We’re waiting for them to come back.':'The game master lost connection. We’ll continue when they’re back.'}</p>${role==='gm'&&G.paused?'<button class="btn" data-act="unpause">Unpause game</button>':''}</div>`;
   if(screen==='table'){
@@ -506,6 +511,11 @@ $('#pinbtn').onclick=async()=>{
 };
 $('#recbtn').onclick=async()=>{if(await makeHost(clean($('#ru').value),$('#rp').value)){await signOut(auth);$('#recbox').classList.add('hidden');$('#forgotbox').classList.add('hidden');gerr('New login created. Log in with it above.')}};
 $('#reccont').onclick=()=>enterGM();
+$('#homebtn').onclick=async()=>{
+  if(G.round>0||(G.phase&&G.phase!=='lobby'))return;
+  if(isP()){const s=seatOf(uid);if(s!==null)try{await set(ref(db,'seats/'+s),null)}catch(e){}}
+  location.reload();
+};
 $('#gmbtn').onclick=()=>{const g=$('#gmp');g.classList.toggle('hidden');if(!g.classList.contains('hidden'))g.innerHTML=gmHTML()};
 $('#win').addEventListener('click',e=>{const b=e.target.closest('[data-dl]');if(!b)return;const cv=$('#cv0'),n='Certificate-'+((P[uid]&&P[uid].name)||'winner').replace(/[^\w-]+/g,'_');if(b.dataset.dl==='png')cv.toBlob(bl=>saveBlob(bl,n+'.png'));else saveBlob(makePDF(cv),n+'.pdf')});
 function showWin(){
@@ -546,7 +556,7 @@ const garland=$('#garland');garland.innerHTML='<span class="bulb"></span>'.repea
 let gmode=0;function lightShow(){const b=garland.children,n=b.length;[...b].forEach((x,i)=>{let d,t;if(gmode===0){d=-Math.random()*3;t=1.2+Math.random()*2}else if(gmode===1){d=i%2?-.9:0;t=1.8}else if(gmode===2){d=-(i*.14%1.8);t=1.8}else{d=-Math.random();t=3}x.style.animationDelay=d+'s';x.style.animationDuration=t+'s'});gmode=(gmode+1)%4}
 lightShow();setInterval(lightShow,8000);
 (function(){const c=['#ff3b55','#ffc94d','#3d8bff','#35d08a','#ff7ad1'],t=$('#tl');let h='';for(let i=0;i<46;i++){const y=6+Math.random()*90,x=50+(Math.random()-.5)*y*.9;h+=`<i style="top:${y}%;left:${x}%;--c:${c[i%5]};animation-delay:${-Math.random()*2}s;animation-duration:${1.2+Math.random()*1.6}s"></i>`}t.innerHTML=h})();
-(function(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const c=$('#snow'),x=c.getContext('2d'),f=[];let w,h;const size=()=>{w=c.width=innerWidth;h=c.height=innerHeight};size();addEventListener('resize',size);
+(function(){const c=$('#snow'),x=c.getContext('2d'),f=[];let w,h;const size=()=>{w=c.width=innerWidth;h=c.height=innerHeight};size();addEventListener('resize',size);
   for(let i=0;i<(innerWidth<600?50:90);i++)f.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*2.6+.8,s:Math.random()*.9+.35,d:Math.random()*6.28});
   (function t(){x.clearRect(0,0,w,h);x.fillStyle='rgba(255,255,255,.85)';x.beginPath();f.forEach(p=>{p.y+=p.s;p.d+=.01;p.x+=Math.sin(p.d)*.4;if(p.y>h+5){p.y=-5;p.x=Math.random()*w}x.moveTo(p.x,p.y);x.arc(p.x,p.y,p.r,0,6.283)});x.fill();requestAnimationFrame(t)})()})();
 
