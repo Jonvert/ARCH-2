@@ -144,6 +144,7 @@ body[data-screen=table] .stage .big{font-size:clamp(1.5rem,2.5vw,2.5rem)}
 body[data-screen=table] .nm{font-size:.85rem}
 body[data-screen=table] .pips i{width:clamp(9px,calc(var(--o)*.125),12px);height:clamp(13px,calc(var(--o)*.18),17px)}
 }
+.slot{display:contents}.gmcorner{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:10px;z-index:30;font:700 .85rem var(--body);color:#fff;background:rgba(255,255,255,.14);border:0;border-radius:999px;padding:10px 14px;cursor:pointer;opacity:.8}.gmcorner:hover{opacity:1}
 </style>
 </head>
 <body data-screen="home">
@@ -166,7 +167,8 @@ body[data-screen=table] .pips i{width:clamp(9px,calc(var(--o)*.125),12px);height
   <section id="home">
     <h1>Never Have I Ever<span>Christmas Edition</span></h1>
     <p class="lede">Hear a statement. If you’ve done it, you lose a light. Last one glowing wins the Nice List.</p>
-    <div class="row"><button class="btn" id="enter" type="button">Enter the party</button><button class="btn alt" id="gmenter" type="button">Game master</button></div>
+    <button class="btn" id="enter" type="button">Enter the party</button>
+    <button class="gmcorner" id="gmenter" type="button">Game master</button>
     <div class="lives-row" aria-hidden="true"><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb off"></span><span class="bulb off"></span></div>
     <p class="hint">Everyone starts with lights. Every “I have” dims one. Each player also gets one secret snowball.</p>
   </section>
@@ -296,7 +298,7 @@ function confetti(){const c=['#ffc94d','#e0394f','#2fa86b','#1d56b8','#fff'];for
 let role=null,app,auth,db,uid=null,screen='home',offset=0,tk=0;
 let G={},P={},SE={},RE={},BAN={},HOSTON=null,myBall=false,myAns=null,aiming=false,SPL=null,gotG=false,gotP=false,offered=false,welcomed=false,bannedMsg=false,hadNode=false,lobbyKey='',regSeat=null,joining=false;
 let BANK={},DECK=[],ANS={},BALLS={},THROWS={},PRES={};
-let gotPres=false,hostSince=0,zeroed={},pauseCall=0,warnDone=false,dqMsg=false;
+let gotPres=false,hostSince=0,zeroed={},pauseCall=0,warnDone=false,dqMsg=false,throwRound=-1,rowsKey='',seatKeys=[],stageKey='',gmLast='',ping=null;
 let selAv=AV[0],photo=null,gmTab='Game',editId=null,busyRev=-1,doneThrow=-1,halfDone=false,lastSec=99,hb=null;
 const pr={round:-1,seq:-1,hit:null,phase:'',lives:null},seenR={},missing={};
 const now=()=>Date.now()+offset;
@@ -316,15 +318,16 @@ let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove(
 // ---------- connect
 function initPlayer(){app=initializeApp(CFG);auth=getAuth(app);db=getDatabase(app)}
 function initHost(){app=initializeApp(CFG,'host');auth=getAuth(app);db=getDatabase(app)}
-const sched=()=>{if(!tk)tk=requestAnimationFrame(()=>{tk=0;changed()})};
-function listen(path,fn){onValue(ref(db,path),s=>{fn(s.val());sched()},e=>console.warn(path,e.code))}
+const runChanged=()=>{tk=0;changed()};
+const sched=()=>{if(!tk){tk=1;if(document.hidden)setTimeout(runChanged,50);else requestAnimationFrame(runChanged)}};
+function listen(path,fn,quiet){onValue(ref(db,path),s=>{fn(s.val());if(!quiet)sched()},e=>console.warn(path,e.code))}
 function attach(){
   onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0});
   listen('game',v=>{G=v||{phase:'lobby',round:0,seq:0,max:5,snowOn:true,dur:19000};gotG=true});listen('players',v=>{P=v||{};gotP=true});listen('seats',v=>{SE=v||{}});
   listen('banned',v=>{BAN=v||{}});listen('hostOnline',v=>{HOSTON=v});
   listen('reacts',v=>{RE=v||{};ent(RE).forEach(([id,r])=>{if(r.t!==seenR[id]){seenR[id]=r.t;const left=REACT_MS-(now()-r.t);if(left>0)setTimeout(sched,left+120)}})});
   if(isP())listen('balls/'+uid,v=>{myBall=!!v});
-  else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}});listen('balls',v=>{BALLS=v||{}});listen('throws',v=>{THROWS=v||{}});listen('presence',v=>{PRES=v||{};gotPres=true})}
+  else{listen('bank',v=>{BANK=v||{}});listen('deck',v=>{DECK=v?Object.values(v):[]});listen('answers',v=>{ANS=v||{}},1);listen('balls',v=>{BALLS=v||{}},1);listen('throws',v=>{THROWS=v||{}},1);listen('presence',v=>{PRES=v||{};gotPres=true},1)}
 }
 async function enterPlayer(){
   startMusic();snd.jingle();role='player';$('#enter').disabled=true;$('#enter').textContent='Connecting…';
@@ -353,7 +356,7 @@ async function enterGM(){
 function changed(){
   if(G.round!==pr.round){if(pr.round!==-1&&G.phase==='question'){snd.ding();mv=.02;aiming=false}pr.round=G.round}
   if(G.seq!==pr.seq){myAns=null;halfDone=false;warnDone=false;lastSec=99;pr.seq=G.seq}
-  if(G.hit&&G.hit!==pr.hit){snd.whoosh();flyBall(G.hit);const to=G.hit;setTimeout(()=>hitPopup(to),1000)}pr.hit=G.hit||null;
+  if(G.hit&&G.hit!==pr.hit){snd.whoosh();flyBall(G.hit);const to=G.hit;setTimeout(()=>hitPopup(to),1000);if(throwRound===G.round){throwRound=-1;toast('Your snowball landed! Nobody knows it was you.')}}pr.hit=G.hit||null;
   if(G.phase!==pr.phase){
     if(G.phase==='reveal'||G.phase==='over')mv=.05;
     if(G.phase==='over'&&pr.phase&&pr.phase!=='over')setTimeout(showWin,1400);
@@ -370,7 +373,7 @@ function changed(){
     if(G.phase==='lobby')dqMsg=false;
     if(P[uid]&&P[uid].dq&&!dqMsg){dqMsg=true;toast('You were offline too long, so you’re watching the rest of this game.')}
     syncLobby();
-  }else procThrow();
+  }
   render();
 }
 function syncLobby(){
@@ -415,10 +418,11 @@ async function begin(){
 }
 function procThrow(){
   if(role!=='gm'||G.phase!=='question'||G.hit||G.paused)return;
-  const t=THROWS[G.round];if(!t||doneThrow===G.round)return;doneThrow=G.round;
+  const t=THROWS[G.round];if(!t||doneThrow===G.round)return;
   const pl=plist(),f=pl.find(p=>p.id===t.from),to=pl.find(p=>p.id===t.to);
-  if(!(f&&to&&BALLS[t.from]&&f.lives>0&&to.lives>0&&f.seat!==null&&to.seat!==null&&t.from!==t.to))return;
-  update(ref(db),{'game/hit':t.to,'game/seq':G.seq+1,'game/dur':HIT_MS,'game/endsAt':now()+HIT_MS,['balls/'+t.from]:false,['players/'+t.from+'/threw']:1,['players/'+t.to+'/hits']:(to.hits||0)+1});
+  doneThrow=G.round;
+  if(!(f&&to&&to.lives>0&&!to.dq&&to.seat!==null&&t.from!==t.to))return;
+  update(ref(db),{'game/hit':t.to,'game/seq':G.seq+1,'game/dur':HIT_MS,'game/endsAt':now()+HIT_MS,['balls/'+t.from]:false,['players/'+t.from+'/threw']:1,['players/'+t.to+'/hits']:(to.hits||0)+1}).catch(e=>{console.warn('snowball failed',e);setTimeout(()=>{doneThrow=-1},1500)});
 }
 async function reveal(){
   if(G.phase!=='question'||busyRev===G.seq)return;busyRev=G.seq;
@@ -434,7 +438,7 @@ async function reveal(){
 async function resetAll(full){
   const upd={deck:null,throws:null,answers:null,'game/phase':'lobby','game/round':0,'game/seq':(G.seq||0)+1,'game/statement':null,'game/last':null,'game/hit':null,'game/winners':null,'game/paused':null,'game/endsAt':null};
   for(const [id] of ent(P)){upd['players/'+id+'/lives']=MAX();upd['players/'+id+'/said']=0;upd['players/'+id+'/hits']=0;upd['players/'+id+'/threw']=0;upd['players/'+id+'/dq']=null;upd['balls/'+id]=true}
-  zeroed={};
+  zeroed={};doneThrow=-1;
   if(full){upd.seats=null;upd.banned=null;upd.reacts=null}
   await update(ref(db),upd);toast(full?'New game! Everyone sits down again.':'Game reset.');
 }
@@ -460,7 +464,9 @@ async function startPause(off){
 }
 function hostTick(){
   if(role!=='gm'||!gotG)return;
+  if(G.phase==='lobby')doneThrow=-1;
   if(G.phase==='question'&&!G.paused&&now()>=G.endsAt+700)reveal();
+  procThrow();
   for(const p of plist())if(p.dq&&p.lives>0&&online(p.id)&&!zeroed[p.id]){zeroed[p.id]=1;set(ref(db,`players/${p.id}/lives`),0).catch(()=>{})}
   if(!G.phase||G.phase==='lobby'||G.phase==='over'||!gotPres||Date.now()-hostSince<6000)return;
   const off=offlineList();
@@ -472,7 +478,8 @@ function hostTick(){
 }
 let beatN=0;
 const heartbeat=()=>{if(isP()&&uid&&db)set(ref(db,'presence/'+uid),serverTimestamp()).catch(()=>{})};
-const workerTick=()=>{hostTick();if(++beatN%16===0)heartbeat()};
+function measurePing(){const t0=performance.now();set(ref(db,'presence/'+auth.currentUser.uid),serverTimestamp()).then(()=>{ping=Math.round(performance.now()-t0)}).catch(()=>{})}
+const workerTick=()=>{hostTick();beatN++;if(beatN%16===0)heartbeat();if(role==='gm'&&beatN%40===1)measurePing()};
 try{const wk=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),250)'],{type:'text/javascript'})));wk.onmessage=workerTick}catch(e){setInterval(workerTick,250)}
 let pt;function popup(h,cls,ms){const p=$('#popup');p.className=cls||'';p.innerHTML=h;void p.offsetWidth;p.classList.add('show');clearTimeout(pt);pt=setTimeout(()=>p.classList.remove('show'),ms||3500)}
 function hitPopup(to){const tp=P[to];if(to===uid&&isP())popup(`❄️ You got hit by a snowball!<small>You must answer this statement:<br>${esc(G.statement||'')}</small>`,'hitme',3600);else popup(`❄️ ${esc(tp?tp.name:'A player')} was hit by a snowball and is answering the statement.`,'',3600)}
@@ -492,7 +499,7 @@ async function makeHost(u,p){
 function seatHTML(i,by){
   const p=by[i],m=isP()?me():null;
   if(!p)return `<button class="orn empty" data-seat="${i}" aria-label="Empty seat" ${(!m||G.round!==0)?'disabled':''}><span class="av">+</span></button>`;
-  const mine=isP()&&p.id===uid,out=p.lives<=0,dim=!out&&!!p.dq,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<REACT_MS,pop=r&&reactPop(p.id);
+  const mine=isP()&&p.id===uid,out=p.lives<=0,dim=!out&&!!p.dq,sp=SPL&&SPL.id===p.id&&Date.now()<SPL.until,aim=aiming&&!out&&!mine,r=RE[p.id]&&now()-RE[p.id].t<REACT_MS,pop=r&&(reactPop(p.id)||now()-RE[p.id].t<500);
   return `<div class="orn ${mine?'me':''} ${out?'out':''} ${dim?'dim':''} ${sp?'splat':''} ${aim?'aim':''}" data-id="${p.id}" ${aim?'tabindex="0" role="button" aria-label="Throw snowball at '+esc(p.name)+'"':''}><div class="av">${p.photo?`<img src="${p.photo}" alt=""><i class="hat"></i>`:esc(p.av||'🎅')}${out?'<b class="coal">🪨</b>':''}${r?`<b class="re${pop?' pop':''}">${esc(RE[p.id].e)}</b>`:''}${mine&&myBall&&G.snowOn&&!out?'<b class="sb" title="Your snowball">⛄</b>':''}</div><div class="nm">${esc(p.name)}</div><div class="pips ${p.lives===1?'last':''}" aria-label="${p.lives} lights">${Array.from({length:MAX()},(_,k)=>`<i class="${k<p.lives?'on':''}"></i>`).join('')}</div></div>`;
 }
 function stageHTML(){
@@ -516,9 +523,9 @@ function stageHTML(){
 function gmHTML(){
   const n=Object.keys(BANK).length;
   let h=`<div class="tabs">${['Game','Players','Questions','Account'].map(x=>`<button class="tab" data-t="${x}" aria-pressed="${x===gmTab}">${x}</button>`).join('')}<button class="link" data-act="close">Close</button></div>`;
-  if(gmTab==='Game')h+=`<p class="hint">Round ${G.round||0}. ${G.round?DECK.length:n} of ${n} statements left. ${aliveList().length} players in play.</p><div class="row"><button class="btn sm" data-act="next" ${G.phase==='question'||G.phase==='over'||G.paused?'disabled':''}>${G.round?'Next statement':'Start game'}</button><button class="btn sm alt" data-act="reset">Reset game</button><button class="btn sm alt" data-act="newgame">New game</button></div>
+  if(gmTab==='Game')h+=`<p class="hint">Round ${G.round||0}. ${G.round?DECK.length:n} of ${n} statements left. ${aliveList().length} players in play.</p><p class="hint">Connection delay to Firebase: ${ping==null?'measuring…':ping+' ms'}${ping>400?' (slow)':''}</p><div class="row"><button class="btn sm" data-act="next" ${G.phase==='question'||G.phase==='over'||G.paused?'disabled':''}>${G.round?'Next statement':'Start game'}</button><button class="btn sm alt" data-act="newgame">New game</button></div>
     ${G.paused?'<button class="btn sm" data-act="unpause">Continue without them</button>':''}
-    <label for="maxl">Lights per player (applies on reset)</label><select id="maxl">${[3,4,5].map(k=>`<option ${k===MAX()?'selected':''}>${k}</option>`).join('')}</select>
+    <label for="maxl">Lights per player (applies on the next new game)</label><select id="maxl">${[3,4,5].map(k=>`<option ${k===MAX()?'selected':''}>${k}</option>`).join('')}</select>
     <label><input type="checkbox" id="snowtog" ${G.snowOn?'checked':''}> Snowballs enabled</label>`;
   if(gmTab==='Players')h+=plist().map(p=>`<div class="gi"><span>${esc(p.name)} · ${p.seat===null?'no seat':'seat '+(p.seat+1)} · ${p.lives}/${MAX()} lights${PRES[p.id]?' · online':' · offline'}</span><button data-act="lm" data-id="${p.id}" aria-label="Remove a light">−</button><button data-act="lp" data-id="${p.id}" aria-label="Add a light">+</button><button class="d" data-act="rm" data-id="${p.id}">Remove</button></div>`).join('')||'<p class="hint">No players yet.</p>';
   if(gmTab==='Questions'){const items=ent(BANK);h+=`<p class="hint">${items.length} statements. Recommended: 50 to 60 for 15 to 20 players.</p><textarea id="newst" rows="4" placeholder="Never have I ever… (one per line)"></textarea><button class="btn sm" data-act="add">Add statements</button>`+items.map(([id,s],i)=>id===editId?`<div class="gi"><input id="edtxt" type="text" value="${esc(s.t)}"><button data-act="save" data-id="${id}">Save</button><button data-act="cancel">Cancel</button></div>`:`<div class="gi"><span>${i+1}. ${esc(s.t)}${G.round>0&&!DECK.includes(id)?' ✓':''}</span><button data-act="edit" data-id="${id}">Edit</button><button class="d" data-act="del" data-id="${id}">Delete</button></div>`).join('')}
@@ -535,13 +542,15 @@ function render(){
   if(G.paused||hostDown)pz.innerHTML=`<div><h2>Game paused</h2><p>${G.paused?esc((G.paused.names||[]).join(', '))+' lost connection.':'The game master lost connection. We’ll continue when they’re back.'}</p>${G.paused?'<p>Waiting <b id="pcount">'+Math.max(0,Math.ceil((G.paused.until-now())/1000))+'</b> seconds for them to come back…</p>':''}${role==='gm'&&G.paused?'<button class="btn" data-act="unpause">Continue without them</button>':''}</div>`;
   if(screen==='table'){
     const m=isP()?me():null,by={};let i=0;plist().forEach(p=>{if(p.seat!==null)by[p.seat]=p});
-    $('#rows').innerHTML=rowsFor().map(k=>`<div class="trow">${Array.from({length:k},()=>seatHTML(i++,by)).join('')}</div>`).join('');
-    $('#stage').innerHTML=stageHTML();
+    const rf=rowsFor(),lk=rf.join();
+    if(lk!==rowsKey){rowsKey=lk;seatKeys=[];let n=0;$('#rows').innerHTML=rf.map(k=>`<div class="trow">${Array.from({length:k},()=>`<div class="slot"></div>`).join('')}</div>`).join('')}
+    document.querySelectorAll('#rows .slot').forEach((el,k)=>{const h=seatHTML(k,by);if(seatKeys[k]!==h){seatKeys[k]=h;el.innerHTML=h}});
+    const sh=stageHTML(),sk=sh.replace(/style="width:[^"]*"/,'');if(sk!==stageKey){stageKey=sk;$('#stage').innerHTML=sh}
     $('#stage').classList.toggle('warn',G.phase==='question'&&!G.paused&&!!m&&m.seat!==null&&m.lives>0&&!m.dq&&(!G.hit||G.hit===uid)&&!myAns&&(G.endsAt-now())<5000);
     $('#seathint').textContent=isP()&&gotP&&!m?'You’re watching this game.':(m&&m.seat===null&&G.round===0?'Pick an empty ornament on the tree to take your seat.':'');
     const em=$('#emojis'),ok=m&&m.seat!==null;em.classList.toggle('hidden',!ok);
     if(ok&&!em.innerHTML)em.innerHTML=EMO.map(e=>`<button type="button" class="eb" data-e="${e}" aria-label="React ${e}">${e}</button>`).join('');
-    const gp=$('#gmp');if(gm&&!gp.classList.contains('hidden')&&!gp.contains(document.activeElement))gp.innerHTML=gmHTML();
+    const gp=$('#gmp');if(gm&&!gp.classList.contains('hidden')&&!gp.contains(document.activeElement)){const gh=gmHTML();if(gh!==gmLast){gmLast=gh;gp.innerHTML=gh}}
   }
   syncHeart();
 }
@@ -550,7 +559,7 @@ function render(){
 $('#enter').onclick=enterPlayer;$('#gmenter').onclick=gmStart;$('#loginback').onclick=()=>location.reload();
 $('#avs').innerHTML=AV.map((a,i)=>`<button type="button" aria-label="Avatar ${i+1}" aria-pressed="${i===0}" data-av="${a}">${a}</button>`).join('');
 $('#avs').onclick=e=>{const b=e.target.closest('button');if(!b)return;selAv=b.dataset.av;photo=null;$('#photo').value='';document.querySelectorAll('#avs button').forEach(x=>x.setAttribute('aria-pressed',x===b));snd.click()};
-$('#photo').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=96;const s=Math.min(im.width,im.height);c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,96,96);photo=c.toDataURL('image/jpeg',.8);document.querySelectorAll('#avs button').forEach(x=>x.setAttribute('aria-pressed','false'));$('#err').style.color='#9be7bf';$('#err').textContent='Photo ready. It will show as an ornament with a Santa hat.'};im.onerror=()=>{$('#err').style.color='';$('#err').textContent='That file couldn’t be read. Try a JPG or PNG.'};im.src=r.result};r.readAsDataURL(f)};
+$('#photo').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=80;const s=Math.min(im.width,im.height);c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,80,80);photo=c.toDataURL('image/jpeg',.7);document.querySelectorAll('#avs button').forEach(x=>x.setAttribute('aria-pressed','false'));$('#err').style.color='#9be7bf';$('#err').textContent='Photo ready. It will show as an ornament with a Santa hat.'};im.onerror=()=>{$('#err').style.color='';$('#err').textContent='That file couldn’t be read. Try a JPG or PNG.'};im.src=r.result};r.readAsDataURL(f)};
 $('#go').onclick=async()=>{
   const n=$('#name').value.trim(),er=m=>{$('#err').style.color='';$('#err').textContent=m};
   if(n.length<2)return er('Enter at least 2 characters.');
@@ -572,7 +581,10 @@ async function sit(n){
 $('#tree').onclick=async e=>{
   const em=e.target.closest('.orn.empty');if(em&&!em.disabled&&isP()&&me())return sit(+em.dataset.seat);
   const aim=e.target.closest('.orn.aim');
-  if(aim){aiming=false;render();try{await set(ref(db,'throws/'+G.round),{from:uid,to:aim.dataset.id});toast('Your snowball is on its way. Nobody will know it was you.')}catch(x){toast('Too late: a snowball is already in the air.')}}
+  if(aim){aiming=false;render();const rd=G.round;toast('Throwing your snowball…');
+    try{await set(ref(db,'throws/'+rd),{from:uid,to:aim.dataset.id});throwRound=rd;
+      setTimeout(()=>{if(throwRound===rd&&G.round===rd&&G.phase==='question'&&!G.hit&&!G.paused){throwRound=-1;toast('The snowball didn’t land. You can try again next statement.')}},5000)}
+    catch(x){toast('Too late: a snowball is already in the air.')}}
 };
 $('#stage').onclick=async e=>{
   const a=e.target.closest('.ans');
@@ -633,7 +645,7 @@ document.addEventListener('click',async e=>{
   }catch(err){toast('That didn’t work. Check your connection and try again.')}
   if(role==='gm'&&!$('#gmp').classList.contains('hidden'))$('#gmp').innerHTML=gmHTML();
 });
-document.addEventListener('change',e=>{if(!db||role!=='gm')return;if(e.target.id==='maxl')set(ref(db,'game/max'),+e.target.value).then(()=>toast('Applies after you reset the game.'));if(e.target.id==='snowtog')set(ref(db,'game/snowOn'),e.target.checked)});
+document.addEventListener('change',e=>{if(!db||role!=='gm')return;if(e.target.id==='maxl')set(ref(db,'game/max'),+e.target.value).then(()=>toast('Applies on the next new game.'));if(e.target.id==='snowtog')set(ref(db,'game/snowOn'),e.target.checked)});
 // ---------- decoration
 const garland=$('#garland');garland.innerHTML='<span class="bulb"></span>'.repeat(Math.max(10,innerWidth/50|0));
 let gmode=0;function lightShow(){const b=garland.children,n=b.length;[...b].forEach((x,i)=>{let d,t;if(gmode===0){d=-Math.random()*3;t=1.2+Math.random()*2}else if(gmode===1){d=i%2?-.9:0;t=1.8}else if(gmode===2){d=-(i*.14%1.8);t=1.8}else{d=-Math.random();t=3}x.style.animationDelay=d+'s';x.style.animationDuration=t+'s'});gmode=(gmode+1)%4}
